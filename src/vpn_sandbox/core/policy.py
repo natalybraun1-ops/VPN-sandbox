@@ -102,6 +102,12 @@ def evaluate_direct_zone(
         )
     if profile is None:
         return _attention_or_block(settings, "Active direct profile missing")
+    if not snapshot.control_available:
+        return _attention_or_block(
+            settings,
+            "Network control unavailable",
+            status_when_blocked=ZoneStatus.ATTENTION,
+        )
     if snapshot.direct_route_confirmed:
         return PolicyDecision(
             status=ZoneStatus.OK,
