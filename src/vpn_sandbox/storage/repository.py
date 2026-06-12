@@ -124,6 +124,14 @@ class Repository:
 
     def delete_vpn_profile(self, profile_id: str) -> None:
         self._connection.execute("DELETE FROM vpn_profiles WHERE id = ?", (profile_id,))
+        self._connection.execute(
+            """
+            UPDATE zone_settings
+            SET active_profile_id = NULL
+            WHERE zone = ? AND active_profile_id = ?
+            """,
+            (ZoneKind.VPN.value, profile_id),
+        )
         self._connection.commit()
 
     def get_vpn_profile(self, profile_id: str | None) -> VpnProfile | None:
@@ -177,6 +185,14 @@ class Repository:
         self._connection.execute(
             "DELETE FROM direct_profiles WHERE id = ?",
             (profile_id,),
+        )
+        self._connection.execute(
+            """
+            UPDATE zone_settings
+            SET active_profile_id = NULL
+            WHERE zone = ? AND active_profile_id = ?
+            """,
+            (ZoneKind.DIRECT.value, profile_id),
         )
         self._connection.commit()
 

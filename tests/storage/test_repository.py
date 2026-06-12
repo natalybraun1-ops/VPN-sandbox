@@ -269,14 +269,18 @@ def test_find_managed_app_works_after_reopening(tmp_path: Path):
 
 
 def test_repository_round_trips_operating_mode(tmp_path: Path):
-    repo = Repository.connect(tmp_path / "settings.sqlite3")
+    db_path = tmp_path / "settings.sqlite3"
+    repo = Repository.connect(db_path)
     repo.initialize()
 
     assert repo.get_operating_mode() is None
 
     repo.save_operating_mode(OperatingMode.DUAL_ZONE)
+    repo.close()
 
+    repo = Repository.connect(db_path)
     assert repo.get_operating_mode() == OperatingMode.DUAL_ZONE
+    repo.close()
 
 
 def test_repository_lists_managed_apps_by_zone(tmp_path: Path):
@@ -347,3 +351,67 @@ def test_repository_deletes_profiles(tmp_path: Path):
 
     assert repo.list_vpn_profiles() == []
     assert repo.list_direct_profiles() == []
+
+
+def test_repository_clears_active_vpn_profile_when_deleted(tmp_path: Path):
+    repo = Repository.connect(tmp_path / "settings.sqlite3")
+    repo.initialize()
+    profile = VpnProfile(
+        id="vpn-1",
+        country_code="DE",
+        country_name="Germany",
+        city="Frankfurt",
+        external_ip="203.0.113.10",
+        protocol="WireGuard",
+        client_name="Amnezia",
+        confidence=Confidence.CERTAIN,
+    )
+    settings = ZoneSettings(
+        zone=ZoneKind.VPN,
+        enabled=True,
+        violation_action=ViolationAction.CLOSE_AFTER_20,
+        warn_only_acknowledged=False,
+        active_profile_id=profile.id,
+    )
+    repo.save_vpn_profile(profile)
+    repo.save_zone_settings(settings)
+
+    repo.delete_vpn_profile(profile.id)
+
+    assert repo.get_zone_settings(ZoneKind.VPN) == ZoneSettings(
+        zone=ZoneKind.VPN,
+        enabled=True,
+        violation_action=ViolationAction.CLOSE_AFTER_20,
+        warn_only_acknowledged=False,
+        active_profile_id=None,
+    )
+
+
+def test_repository_clears_active_direct_profile_when_deleted(tmp_path: Path):
+    repo = Repository.connect(tmp_path / "settings.sqlite3")
+    repo.initialize()
+    profile = DirectProfile(
+        id="direct-1",
+        interface_name="Ethernet",
+        gateway=None,
+        dns_servers=("1.1.1.1",),
+    )
+    settings = ZoneSettings(
+        zone=ZoneKind.DIRECT,
+        enabled=True,
+        violation_action=ViolationAction.WARN_ONLY,
+        warn_only_acknowledged=True,
+        active_profile_id=profile.id,
+    )
+    repo.save_direct_profile(profile)
+    repo.save_zone_settings(settings)
+
+    repo.delete_direct_profile(profile.id)
+
+    assert repo.get_zone_settings(ZoneKind.DIRECT) == ZoneSettings(
+        zone=ZoneKind.DIRECT,
+        enabled=True,
+        violation_action=ViolationAction.WARN_ONLY,
+        warn_only_acknowledged=True,
+        active_profile_id=None,
+    )
