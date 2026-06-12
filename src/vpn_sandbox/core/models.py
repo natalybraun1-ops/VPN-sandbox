@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import PureWindowsPath
+import ntpath
 
 
 class OperatingMode(StrEnum):
@@ -107,4 +107,4 @@ class ManagedApp:
 
     @property
     def match_key(self) -> str:
-        return str(PureWindowsPath(self.exe_path)).lower()
+        return ntpath.normcase(ntpath.normpath(self.exe_path))
