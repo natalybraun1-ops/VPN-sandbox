@@ -8,6 +8,7 @@ from vpn_sandbox.core.models import (
     Confidence,
     DirectProfile,
     ManagedApp,
+    OperatingMode,
     ViolationAction,
     VpnProfile,
     ZoneKind,
@@ -53,6 +54,26 @@ class Repository:
         if row is None:
             return 0
         return int(row["value"])
+
+    def save_operating_mode(self, mode: OperatingMode) -> None:
+        self._connection.execute(
+            "INSERT OR REPLACE INTO app_settings(key, value) VALUES('operating_mode', ?)",
+            (mode.value,),
+        )
+        self._connection.commit()
+
+    def get_operating_mode(self) -> OperatingMode | None:
+        try:
+            row = self._connection.execute(
+                "SELECT value FROM app_settings WHERE key = 'operating_mode'"
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            if str(exc) != "no such table: app_settings":
+                raise
+            return None
+        if row is None:
+            return None
+        return OperatingMode(row["value"])
 
     def save_vpn_profile(self, profile: VpnProfile) -> None:
         self._connection.execute(
@@ -101,6 +122,10 @@ class Repository:
             for row in rows
         ]
 
+    def delete_vpn_profile(self, profile_id: str) -> None:
+        self._connection.execute("DELETE FROM vpn_profiles WHERE id = ?", (profile_id,))
+        self._connection.commit()
+
     def get_vpn_profile(self, profile_id: str | None) -> VpnProfile | None:
         if profile_id is None:
             return None
@@ -147,6 +172,13 @@ class Repository:
             )
             for row in rows
         ]
+
+    def delete_direct_profile(self, profile_id: str) -> None:
+        self._connection.execute(
+            "DELETE FROM direct_profiles WHERE id = ?",
+            (profile_id,),
+        )
+        self._connection.commit()
 
     def get_direct_profile(self, profile_id: str | None) -> DirectProfile | None:
         if profile_id is None:
@@ -216,6 +248,39 @@ class Repository:
             if "managed_apps.match_key" in str(exc):
                 raise ValueError("application is already managed") from exc
             raise
+
+    def list_managed_apps(self, zone: ZoneKind | None = None) -> list[ManagedApp]:
+        if zone is None:
+            rows = self._connection.execute(
+                """
+                SELECT id, zone, exe_path, display_name
+                FROM managed_apps
+                ORDER BY id
+                """
+            ).fetchall()
+        else:
+            rows = self._connection.execute(
+                """
+                SELECT id, zone, exe_path, display_name
+                FROM managed_apps
+                WHERE zone = ?
+                ORDER BY id
+                """,
+                (zone.value,),
+            ).fetchall()
+        return [
+            ManagedApp(
+                id=row["id"],
+                zone=ZoneKind(row["zone"]),
+                exe_path=row["exe_path"],
+                display_name=row["display_name"],
+            )
+            for row in rows
+        ]
+
+    def delete_managed_app(self, app_id: str) -> None:
+        self._connection.execute("DELETE FROM managed_apps WHERE id = ?", (app_id,))
+        self._connection.commit()
 
     def find_managed_app(self, exe_path: str) -> ManagedApp | None:
         match_key = ManagedApp(
