@@ -8,9 +8,7 @@ from PyQt6.QtWidgets import QApplication
 
 def create_qapplication(argv: Sequence[str] | None = None) -> QApplication:
     existing = QApplication.instance()
-    if existing is not None:
-        return existing
-    app = QApplication(list(argv or []))
+    app = existing if existing is not None else QApplication(list(argv or []))
     app.setApplicationName("Песочница VPN")
     app.setOrganizationName("VPN Sandbox")
     return app
