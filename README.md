@@ -14,6 +14,9 @@ The first implementation slice contains the Python foundation:
 The approved product design lives in
 [docs/superpowers/specs/2026-06-12-vpn-sandbox-design.md](docs/superpowers/specs/2026-06-12-vpn-sandbox-design.md).
 
+For continuation in new branches, start with
+[docs/handoff/README.md](docs/handoff/README.md).
+
 ## Foundation Checks
 
 Run the test suite:

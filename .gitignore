@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 pytest-cache-files-*/
 .pytest-tmp/
+.pytest-*/
 .codex-pytest-*/
 pytest-*/
 task7tmp/
