@@ -24,6 +24,13 @@ class Repository:
         path.parent.mkdir(parents=True, exist_ok=True)
         return cls(sqlite3.connect(path))
 
+    @property
+    def in_transaction(self) -> bool:
+        return self._connection.in_transaction
+
+    def close(self) -> None:
+        self._connection.close()
+
     def initialize(self) -> None:
         self._connection.executescript(DDL)
         self._connection.execute(
@@ -156,7 +163,10 @@ class Repository:
             )
             self._connection.commit()
         except sqlite3.IntegrityError as exc:
-            raise ValueError("application is already managed") from exc
+            self._connection.rollback()
+            if "managed_apps.match_key" in str(exc):
+                raise ValueError("application is already managed") from exc
+            raise
 
     def find_managed_app(self, exe_path: str) -> ManagedApp | None:
         match_key = ManagedApp(
