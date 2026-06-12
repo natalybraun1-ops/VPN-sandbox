@@ -201,13 +201,13 @@ def test_repository_persists_vpn_profile_and_zone_settings_after_reopening(
     profile = VpnProfile(
         id="vpn-1",
         country_code="DE",
-        country_name="Р“РµСЂРјР°РЅРёСЏ",
+        country_name="Германия",
         city="Frankfurt",
         external_ip="203.0.113.10",
         protocol="WireGuard",
         client_name="Amnezia",
         confidence=Confidence.CERTAIN,
-        custom_name="РћСЃРЅРѕРІРЅРѕР№ VPN",
+        custom_name="Основной VPN",
     )
     settings = ZoneSettings(
         zone=ZoneKind.VPN,
