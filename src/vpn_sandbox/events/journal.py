@@ -66,6 +66,8 @@ class EventJournal:
             handle.write(record.to_json_line() + "\n")
 
     def read_recent(self, limit: int) -> list[EventRecord]:
+        if limit <= 0:
+            return []
         if not self._path.exists():
             return []
         lines = self._path.read_text(encoding="utf-8").splitlines()
