@@ -1,2 +1,10 @@
 .superpowers/
 .worktrees/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.pytest-tmp/
+.codex-pytest-*/
+pytest-*/
+task7tmp/
