@@ -206,12 +206,19 @@ class AppController:
         simulator: ServiceSimulator,
         settings: ZoneSettings | None,
     ) -> PolicyDecision:
-        if settings is None or not settings.enabled:
+        if settings is None:
+            return PolicyDecision(
+                status=ZoneStatus.DISABLED,
+                can_start=True,
+                reason="Zone settings missing",
+                action=ViolationAction.CLOSE_AFTER_20,
+            )
+        if not settings.enabled:
             return PolicyDecision(
                 status=ZoneStatus.DISABLED,
                 can_start=True,
                 reason="Zone disabled",
-                action=ViolationAction.CLOSE_AFTER_20,
+                action=settings.violation_action,
             )
         if not apps:
             return PolicyDecision(
