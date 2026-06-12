@@ -11,7 +11,8 @@ The first implementation slice contains the Python foundation:
 - IPC message contracts;
 - a local service simulator for tests and early UI development.
 
-The approved product design lives in `docs/superpowers/specs/2026-06-12-vpn-sandbox-design.md`.
+The approved product design lives in
+[docs/superpowers/specs/2026-06-12-vpn-sandbox-design.md](docs/superpowers/specs/2026-06-12-vpn-sandbox-design.md).
 
 ## Foundation Checks
 
