@@ -14,12 +14,25 @@ def mask_ip(value: str) -> str:
 
 
 def _mask_details(details: dict[str, Any]) -> dict[str, Any]:
+    def mask_value(key: str | None, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                child_key: mask_value(child_key, child_value)
+                for child_key, child_value in value.items()
+            }
+        if isinstance(value, list):
+            return [mask_value(None, item) for item in value]
+        if (
+            key is not None
+            and (key == "ip" or key.endswith("_ip"))
+            and isinstance(value, str)
+        ):
+            return mask_ip(value)
+        return value
+
     masked: dict[str, Any] = {}
     for key, value in details.items():
-        if key.endswith("_ip") and isinstance(value, str):
-            masked[key] = mask_ip(value)
-        else:
-            masked[key] = value
+        masked[key] = mask_value(key, value)
     return masked
 
 

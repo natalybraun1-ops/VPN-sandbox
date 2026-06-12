@@ -41,4 +41,5 @@ class ServiceSimulator:
             profile = self._repository.get_vpn_profile(settings.active_profile_id)
             return evaluate_vpn_zone(settings, profile, snapshot)
 
-        return evaluate_direct_zone(settings, None, snapshot)
+        profile = self._repository.get_direct_profile(settings.active_profile_id)
+        return evaluate_direct_zone(settings, profile, snapshot)

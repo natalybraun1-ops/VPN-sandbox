@@ -5,6 +5,7 @@ import pytest
 
 from vpn_sandbox.core.models import (
     Confidence,
+    DirectProfile,
     ManagedApp,
     ViolationAction,
     VpnProfile,
@@ -48,6 +49,39 @@ def test_repository_round_trips_vpn_profile(tmp_path: Path):
     repo.save_vpn_profile(profile)
 
     assert repo.list_vpn_profiles() == [profile]
+
+
+def test_repository_round_trips_direct_profile(tmp_path: Path):
+    repo = Repository.connect(tmp_path / "settings.sqlite3")
+    repo.initialize()
+    profile = DirectProfile(
+        id="direct-1",
+        interface_name="Ethernet",
+        gateway="192.0.2.1",
+        dns_servers=("1.1.1.1", "8.8.8.8"),
+        custom_name="Home ISP",
+        ordinal=1,
+    )
+
+    repo.save_direct_profile(profile)
+
+    assert repo.list_direct_profiles() == [profile]
+
+
+def test_repository_gets_direct_profile_by_active_id(tmp_path: Path):
+    repo = Repository.connect(tmp_path / "settings.sqlite3")
+    repo.initialize()
+    profile = DirectProfile(
+        id="direct-1",
+        interface_name="Ethernet",
+        gateway=None,
+        dns_servers=(),
+    )
+    repo.save_direct_profile(profile)
+
+    assert repo.get_direct_profile(profile.id) == profile
+    assert repo.get_direct_profile(None) is None
+    assert repo.get_direct_profile("missing") is None
 
 
 def test_repository_keeps_one_active_profile_per_zone(tmp_path: Path):
@@ -190,6 +224,27 @@ def test_repository_persists_vpn_profile_and_zone_settings_after_reopening(
 
     assert reopened.list_vpn_profiles() == [profile]
     assert reopened.get_zone_settings(ZoneKind.VPN) == settings
+    reopened.close()
+
+
+def test_repository_persists_direct_profile_after_reopening(tmp_path: Path):
+    db_path = tmp_path / "settings.sqlite3"
+    repo = Repository.connect(db_path)
+    repo.initialize()
+    profile = DirectProfile(
+        id="direct-1",
+        interface_name="Ethernet",
+        gateway="192.0.2.1",
+        dns_servers=("9.9.9.9",),
+        custom_name=None,
+        ordinal=0,
+    )
+    repo.save_direct_profile(profile)
+    repo.close()
+
+    reopened = Repository.connect(db_path)
+
+    assert reopened.list_direct_profiles() == [profile]
     reopened.close()
 
 

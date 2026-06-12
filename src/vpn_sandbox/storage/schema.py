@@ -20,6 +20,15 @@ CREATE TABLE IF NOT EXISTS vpn_profiles (
     custom_name TEXT
 );
 
+CREATE TABLE IF NOT EXISTS direct_profiles (
+    id TEXT PRIMARY KEY,
+    interface_name TEXT NOT NULL,
+    gateway TEXT,
+    dns_servers TEXT NOT NULL,
+    custom_name TEXT,
+    ordinal INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS zone_settings (
     zone TEXT PRIMARY KEY,
     enabled INTEGER NOT NULL,

@@ -27,6 +27,56 @@ def test_event_journal_appends_and_reads_recent_events(tmp_path: Path):
     assert events[0].details["external_ip"] == "203.0.113.x"
 
 
+def test_event_journal_masks_exact_ip_key(tmp_path: Path):
+    journal = EventJournal(tmp_path / "events.jsonl")
+    journal.append(
+        EventRecord(
+            timestamp="2026-06-12T10:00:00Z",
+            level="warning",
+            zone="vpn",
+            app="Chrome",
+            reason="IP check",
+            details={"ip": "203.0.113.10"},
+        )
+    )
+
+    events = journal.read_recent(limit=10)
+
+    assert events[0].details["ip"] == "203.0.113.x"
+
+
+def test_event_journal_masks_nested_ip_details(tmp_path: Path):
+    journal = EventJournal(tmp_path / "events.jsonl")
+    details = {
+        "network": {"external_ip": "198.51.100.7"},
+        "routes": [{"gateway_ip": "192.0.2.1"}],
+        "label": "keep-me",
+    }
+    journal.append(
+        EventRecord(
+            timestamp="2026-06-12T10:00:00Z",
+            level="warning",
+            zone="direct",
+            app="Editor",
+            reason="Route check",
+            details=details,
+        )
+    )
+
+    events = journal.read_recent(limit=10)
+
+    assert events[0].details == {
+        "network": {"external_ip": "198.51.100.x"},
+        "routes": [{"gateway_ip": "192.0.2.x"}],
+        "label": "keep-me",
+    }
+    assert details == {
+        "network": {"external_ip": "198.51.100.7"},
+        "routes": [{"gateway_ip": "192.0.2.1"}],
+        "label": "keep-me",
+    }
+
+
 def test_event_journal_returns_no_events_for_non_positive_limit(tmp_path: Path):
     journal = EventJournal(tmp_path / "events.jsonl")
     journal.append(

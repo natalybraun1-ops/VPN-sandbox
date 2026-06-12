@@ -2,6 +2,7 @@ from pathlib import Path
 
 from vpn_sandbox.core.models import (
     Confidence,
+    DirectProfile,
     ManagedApp,
     ViolationAction,
     VpnProfile,
@@ -46,6 +47,31 @@ def make_repo(tmp_path: Path) -> Repository:
             display_name="Browser",
         )
     )
+    repo.save_direct_profile(
+        DirectProfile(
+            id="direct-1",
+            interface_name="Ethernet",
+            gateway="192.0.2.1",
+            dns_servers=("1.1.1.1",),
+        )
+    )
+    repo.save_zone_settings(
+        ZoneSettings(
+            zone=ZoneKind.DIRECT,
+            enabled=True,
+            violation_action=ViolationAction.CLOSE_AFTER_20,
+            warn_only_acknowledged=False,
+            active_profile_id="direct-1",
+        )
+    )
+    repo.add_managed_app(
+        ManagedApp(
+            id="app-2",
+            zone=ZoneKind.DIRECT,
+            exe_path="C:/Apps/editor.exe",
+            display_name="Editor",
+        )
+    )
     return repo
 
 
@@ -81,3 +107,22 @@ def test_simulator_blocks_managed_vpn_app_on_wrong_country(tmp_path: Path):
     assert decision.can_start is False
     assert decision.status == ZoneStatus.BLOCKED
     assert decision.reason == "VPN country mismatch"
+
+
+def test_simulator_allows_managed_direct_app_when_direct_route_confirmed(
+    tmp_path: Path,
+):
+    simulator = ServiceSimulator(make_repo(tmp_path))
+    snapshot = NetworkSnapshot(
+        control_available=True,
+        vpn_detected=False,
+        country_code=None,
+        direct_route_confirmed=True,
+        geo_ip_available=True,
+    )
+
+    decision = simulator.evaluate_start("c:\\apps\\editor.exe", snapshot)
+
+    assert decision.can_start is True
+    assert decision.status == ZoneStatus.OK
+    assert decision.reason == "Direct route confirmed"

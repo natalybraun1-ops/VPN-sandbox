@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
 from vpn_sandbox.core.models import (
     Confidence,
+    DirectProfile,
     ManagedApp,
     ViolationAction,
     VpnProfile,
@@ -103,6 +105,53 @@ class Repository:
         if profile_id is None:
             return None
         for profile in self.list_vpn_profiles():
+            if profile.id == profile_id:
+                return profile
+        return None
+
+    def save_direct_profile(self, profile: DirectProfile) -> None:
+        self._connection.execute(
+            """
+            INSERT OR REPLACE INTO direct_profiles(
+                id, interface_name, gateway, dns_servers, custom_name, ordinal
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                profile.id,
+                profile.interface_name,
+                profile.gateway,
+                json.dumps(list(profile.dns_servers)),
+                profile.custom_name,
+                profile.ordinal,
+            ),
+        )
+        self._connection.commit()
+
+    def list_direct_profiles(self) -> list[DirectProfile]:
+        rows = self._connection.execute(
+            """
+            SELECT id, interface_name, gateway, dns_servers, custom_name, ordinal
+            FROM direct_profiles
+            ORDER BY id
+            """
+        ).fetchall()
+        return [
+            DirectProfile(
+                id=row["id"],
+                interface_name=row["interface_name"],
+                gateway=row["gateway"],
+                dns_servers=tuple(json.loads(row["dns_servers"])),
+                custom_name=row["custom_name"],
+                ordinal=row["ordinal"],
+            )
+            for row in rows
+        ]
+
+    def get_direct_profile(self, profile_id: str | None) -> DirectProfile | None:
+        if profile_id is None:
+            return None
+        for profile in self.list_direct_profiles():
             if profile.id == profile_id:
                 return profile
         return None
