@@ -23,6 +23,12 @@ def test_repository_initializes_schema(tmp_path: Path):
     assert repo.schema_version() == SCHEMA_VERSION
 
 
+def test_schema_version_is_zero_before_initialization(tmp_path: Path):
+    repo = Repository.connect(tmp_path / "settings.sqlite3")
+
+    assert repo.schema_version() == 0
+
+
 def test_repository_round_trips_vpn_profile(tmp_path: Path):
     repo = Repository.connect(tmp_path / "settings.sqlite3")
     repo.initialize()

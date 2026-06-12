@@ -33,9 +33,14 @@ class Repository:
         self._connection.commit()
 
     def schema_version(self) -> int:
-        row = self._connection.execute(
-            "SELECT value FROM meta WHERE key = 'schema_version'"
-        ).fetchone()
+        try:
+            row = self._connection.execute(
+                "SELECT value FROM meta WHERE key = 'schema_version'"
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            if str(exc) != "no such table: meta":
+                raise
+            return 0
         if row is None:
             return 0
         return int(row["value"])
