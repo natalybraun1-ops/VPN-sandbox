@@ -175,6 +175,7 @@ Write these empty package marker files:
 Run:
 
 ```powershell
+$env:PYTHONPATH = "src"
 python -c "import vpn_sandbox; print(vpn_sandbox.__version__)"
 ```
 
@@ -1728,6 +1729,7 @@ Expected:
 Run:
 
 ```powershell
+$env:PYTHONPATH = "src"
 python -m vpn_sandbox doctor
 ```
 
@@ -1780,6 +1782,7 @@ python -m pytest
 Run the smoke check:
 
 ```powershell
+$env:PYTHONPATH = "src"
 python -m vpn_sandbox doctor
 ```
 ````
@@ -1790,6 +1793,7 @@ Run:
 
 ```powershell
 python -m pytest
+$env:PYTHONPATH = "src"
 python -m vpn_sandbox doctor
 git status --short
 ```
