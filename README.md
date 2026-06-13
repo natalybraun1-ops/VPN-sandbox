@@ -42,5 +42,27 @@ python -m vpn_sandbox doctor
 Expected smoke output contains:
 
 ```json
-{"app": "vpn-sandbox", "core": "ok", "storage_schema": 1, "version": "0.1.0"}
+{"app": "vpn-sandbox", "core": "ok", "storage_schema": 2, "version": "0.1.0"}
+```
+
+## UI Shell Checks
+
+Run the PyQt6 application:
+
+```powershell
+python -m vpn_sandbox ui
+```
+
+For a local sandbox data directory:
+
+```powershell
+$env:VPN_SANDBOX_DATA_DIR = "$PWD\.local-data"
+python -m vpn_sandbox ui
+```
+
+Run headless UI smoke tests:
+
+```powershell
+$env:QT_QPA_PLATFORM = "offscreen"
+python -m pytest tests/ui -q
 ```
