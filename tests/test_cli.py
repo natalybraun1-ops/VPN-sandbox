@@ -1,4 +1,5 @@
 from vpn_sandbox.__main__ import build_doctor_payload, main
+from vpn_sandbox.storage.schema import SCHEMA_VERSION
 
 
 def test_build_doctor_payload_reports_core_status():
@@ -6,7 +7,7 @@ def test_build_doctor_payload_reports_core_status():
 
     assert payload["app"] == "vpn-sandbox"
     assert payload["core"] == "ok"
-    assert payload["storage_schema"] == 1
+    assert payload["storage_schema"] == SCHEMA_VERSION
 
 
 def test_main_doctor_prints_json(capsys):

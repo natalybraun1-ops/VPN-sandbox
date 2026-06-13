@@ -21,7 +21,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="vpn-sandbox")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor")
+    subparsers.add_parser("ui")
     args = parser.parse_args(argv)
+
+    if args.command == "ui":
+        from vpn_sandbox.ui.app import main as ui_main
+
+        return ui_main([])
 
     if args.command == "doctor":
         print(json.dumps(build_doctor_payload(), ensure_ascii=False, sort_keys=True))
