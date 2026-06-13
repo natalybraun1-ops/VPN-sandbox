@@ -12,17 +12,19 @@ from PyQt6.QtWidgets import (
 )
 
 from vpn_sandbox.app.controller import AppController
+from vpn_sandbox.core.models import ZoneKind
 from vpn_sandbox.core.policy import NetworkSnapshot
-from vpn_sandbox.ui.app import create_qapplication
+from vpn_sandbox.ui.text import zone_label
 from vpn_sandbox.ui.view_models import build_zone_card
 from vpn_sandbox.ui.widgets import StatusBadge, set_table_rows
 
 
+_ZONE_ORDER = (ZoneKind.VPN, ZoneKind.DIRECT)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, controller: AppController) -> None:
-        app = create_qapplication([])
         super().__init__()
-        self._app = app
         self.controller = controller
         self.setWindowTitle("Песочница VPN")
         self.resize(980, 640)
@@ -108,7 +110,12 @@ class MainWindow(QMainWindow):
         )
         dashboard = self.controller.load_dashboard(snapshot)
 
-        for label, zone in zip(self._dashboard_labels, dashboard.zones.values()):
+        for label, zone_kind in zip(self._dashboard_labels, _ZONE_ORDER):
+            zone = dashboard.zones.get(zone_kind)
+            if zone is None:
+                label.setText(f"{zone_label(zone_kind)}: нет данных")
+                continue
+
             card = build_zone_card(zone)
             label.setText(
                 f"{card.title}: {card.status}\n"
@@ -116,11 +123,13 @@ class MainWindow(QMainWindow):
                 f"{card.app_count} · {card.reason}"
             )
 
-        app_rows = [
-            [app.zone.value, app.display_name, app.exe_path]
-            for zone in dashboard.zones.values()
-            for app in zone.apps
-        ]
+        app_rows = []
+        for zone_kind in _ZONE_ORDER:
+            zone = dashboard.zones.get(zone_kind)
+            if zone is None:
+                continue
+            for app in zone.apps:
+                app_rows.append([app.zone.value, app.display_name, app.exe_path])
         set_table_rows(self._apps_table, app_rows)
 
         event_rows = [
