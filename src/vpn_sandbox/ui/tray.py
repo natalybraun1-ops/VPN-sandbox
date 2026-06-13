@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from vpn_sandbox.ui.main_window import MainWindow
 from vpn_sandbox.ui.mini_indicator import MiniIndicator
@@ -21,8 +21,8 @@ class TrayController:
 
         open_action.triggered.connect(self.window.show)
         mini_action.triggered.connect(self.indicator.show)
-        journal_action.triggered.connect(lambda: self.window.tabs.setCurrentIndex(4))
-        quit_action.triggered.connect(self.window.close)
+        journal_action.triggered.connect(self._open_journal)
+        quit_action.triggered.connect(self._quit)
 
         self.menu.addAction(open_action)
         self.menu.addAction(mini_action)
@@ -36,6 +36,18 @@ class TrayController:
     def show(self) -> None:
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.tray.show()
+
+    def _open_journal(self) -> None:
+        self.window.tabs.setCurrentIndex(4)
+        self.window.show()
+        self.window.raise_()
+        self.window.activateWindow()
+
+    def _quit(self) -> None:
+        self.tray.hide()
+        self.indicator.close()
+        self.window.close()
+        QApplication.quit()
 
     def menu_action_texts(self) -> list[str]:
         return [action.text() for action in self.menu.actions()]

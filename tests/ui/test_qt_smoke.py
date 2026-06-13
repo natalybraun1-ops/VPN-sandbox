@@ -243,6 +243,113 @@ def test_main_window_adds_manual_app_from_action(tmp_path: Path):
         context.close()
 
 
+def test_main_window_saves_zone_settings_from_action(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import (
+        OperatingMode,
+        ViolationAction,
+        ZoneKind,
+        ZoneSettings,
+    )
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+
+        window.save_zone_settings_for_test(
+            zone=ZoneKind.VPN,
+            enabled=False,
+            violation_action=ViolationAction.WARN_ONLY,
+            warn_only_acknowledged=True,
+            active_profile_id="vpn-active",
+        )
+
+        assert context.repository.get_zone_settings(ZoneKind.VPN) == ZoneSettings(
+            zone=ZoneKind.VPN,
+            enabled=False,
+            violation_action=ViolationAction.WARN_ONLY,
+            warn_only_acknowledged=True,
+            active_profile_id="vpn-active",
+        )
+    finally:
+        context.close()
+
+
+def test_main_window_saves_zone_settings_from_controls(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ViolationAction, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        action_index = window._zone_violation_actions[ZoneKind.DIRECT].findData(
+            ViolationAction.WARN_ONLY
+        )
+
+        window._zone_enabled_checkboxes[ZoneKind.DIRECT].setChecked(False)
+        window._zone_violation_actions[ZoneKind.DIRECT].setCurrentIndex(action_index)
+        window._zone_warn_acknowledged_checkboxes[ZoneKind.DIRECT].setChecked(True)
+        window._save_zone_settings_from_controls(ZoneKind.DIRECT)
+
+        settings = context.repository.get_zone_settings(ZoneKind.DIRECT)
+        assert settings.enabled is False
+        assert settings.violation_action == ViolationAction.WARN_ONLY
+        assert settings.warn_only_acknowledged is True
+    finally:
+        context.close()
+
+
+def test_main_window_removes_managed_app_and_allows_readding_path(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        exe_path = "C:/Apps/browser.exe"
+        window.add_manual_app_for_test(ZoneKind.VPN, exe_path, "Browser")
+        app = context.repository.list_managed_apps(ZoneKind.VPN)[0]
+
+        with pytest.raises(ValueError, match="application is already managed"):
+            window.add_manual_app_for_test(ZoneKind.DIRECT, exe_path, "Browser")
+        window.remove_managed_app_for_test(app.id)
+        window.add_manual_app_for_test(ZoneKind.DIRECT, exe_path, "Browser")
+
+        assert context.repository.list_managed_apps(ZoneKind.VPN) == []
+        assert len(context.repository.list_managed_apps(ZoneKind.DIRECT)) == 1
+    finally:
+        context.close()
+
+
+def test_main_window_removes_selected_managed_app_from_table(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        window.add_manual_app_for_test(ZoneKind.VPN, "C:/Apps/browser.exe", "Browser")
+        window._apps_table.selectRow(0)
+
+        window._remove_selected_managed_app()
+
+        assert context.repository.list_managed_apps() == []
+    finally:
+        context.close()
+
+
 def test_main_window_add_app_dialog_warns_for_duplicate_app(monkeypatch):
     from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
     from vpn_sandbox.app.controller import DashboardState
@@ -440,6 +547,163 @@ def test_main_window_saves_active_direct_profile_from_action(tmp_path: Path):
         context.close()
 
 
+def test_main_window_deletes_active_profiles_from_action(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        window.save_vpn_profile_for_test(
+            country_code="DE",
+            country_name="Germany",
+            city="Berlin",
+            external_ip="203.0.113.10",
+            protocol="WireGuard",
+            client_name="wg-client",
+            custom_name="Berlin WG",
+        )
+        window.save_direct_profile_for_test(
+            interface_name="Ethernet",
+            gateway="192.0.2.1",
+            dns_servers=("1.1.1.1",),
+            custom_name="Office LAN",
+        )
+        vpn_profile = context.repository.list_vpn_profiles()[0]
+        direct_profile = context.repository.list_direct_profiles()[0]
+
+        window.delete_vpn_profile_for_test(vpn_profile.id)
+        window.delete_direct_profile_for_test(direct_profile.id)
+
+        assert context.repository.list_vpn_profiles() == []
+        assert context.repository.list_direct_profiles() == []
+        assert (
+            context.repository.get_zone_settings(ZoneKind.VPN).active_profile_id is None
+        )
+        assert (
+            context.repository.get_zone_settings(ZoneKind.DIRECT).active_profile_id
+            is None
+        )
+    finally:
+        context.close()
+
+
+def test_main_window_activates_profiles_from_action(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        window.save_vpn_profile_for_test(
+            country_code="DE",
+            country_name="Germany",
+            city="Berlin",
+            external_ip="203.0.113.10",
+            protocol="WireGuard",
+            client_name="wg-client",
+            custom_name="Berlin WG",
+            make_active=False,
+        )
+        window.save_vpn_profile_for_test(
+            country_code="NL",
+            country_name="Netherlands",
+            city="Amsterdam",
+            external_ip="203.0.113.20",
+            protocol="OpenVPN",
+            client_name="ovpn-client",
+            custom_name="Amsterdam OVPN",
+            make_active=False,
+        )
+        window.save_direct_profile_for_test(
+            interface_name="Ethernet",
+            gateway="192.0.2.1",
+            dns_servers=("1.1.1.1",),
+            custom_name="Office LAN",
+            make_active=False,
+        )
+        window.save_direct_profile_for_test(
+            interface_name="Wi-Fi",
+            gateway="192.0.2.254",
+            dns_servers=("8.8.8.8",),
+            custom_name="Backup LAN",
+            make_active=False,
+        )
+        vpn_profiles = context.repository.list_vpn_profiles()
+        direct_profiles = context.repository.list_direct_profiles()
+
+        window.activate_vpn_profile_for_test(vpn_profiles[1].id)
+        window.activate_direct_profile_for_test(direct_profiles[1].id)
+
+        assert (
+            context.repository.get_zone_settings(ZoneKind.VPN).active_profile_id
+            == vpn_profiles[1].id
+        )
+        assert (
+            context.repository.get_zone_settings(ZoneKind.DIRECT).active_profile_id
+            == direct_profiles[1].id
+        )
+    finally:
+        context.close()
+
+
+def test_main_window_profile_table_actions_activate_and_delete(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        window.save_vpn_profile_for_test(
+            country_code="DE",
+            country_name="Germany",
+            city="Berlin",
+            external_ip="203.0.113.10",
+            protocol="WireGuard",
+            client_name="wg-client",
+            custom_name="Berlin WG",
+            make_active=False,
+        )
+        window.save_vpn_profile_for_test(
+            country_code="NL",
+            country_name="Netherlands",
+            city="Amsterdam",
+            external_ip="203.0.113.20",
+            protocol="OpenVPN",
+            client_name="ovpn-client",
+            custom_name="Amsterdam OVPN",
+            make_active=False,
+        )
+        second_profile = context.repository.list_vpn_profiles()[1]
+
+        window._vpn_profiles_table.selectRow(1)
+        window._activate_selected_vpn_profile()
+
+        assert (
+            context.repository.get_zone_settings(ZoneKind.VPN).active_profile_id
+            == second_profile.id
+        )
+
+        window._vpn_profiles_table.selectRow(1)
+        window._delete_selected_vpn_profile()
+
+        remaining_profiles = context.repository.list_vpn_profiles()
+        assert len(remaining_profiles) == 1
+        assert remaining_profiles[0].id != second_profile.id
+        assert context.repository.get_zone_settings(ZoneKind.VPN).active_profile_id is None
+    finally:
+        context.close()
+
+
 def test_main_window_direct_profile_dialog_saves_dns_servers(tmp_path: Path, monkeypatch):
     from vpn_sandbox.app.bootstrap import open_app_context
     from vpn_sandbox.core.models import ZoneKind
@@ -597,5 +861,78 @@ def test_tray_controller_builds_menu(tmp_path: Path):
             "Открыть журнал",
             "Выход",
         ]
+    finally:
+        context.close()
+
+
+def test_tray_exit_quits_application_when_indicator_is_open(
+    tmp_path: Path,
+    monkeypatch,
+):
+    from PyQt6.QtWidgets import QApplication
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode
+    from vpn_sandbox.ui.main_window import MainWindow
+    from vpn_sandbox.ui.tray import TrayController
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    quit_calls = []
+    monkeypatch.setattr(QApplication, "quit", lambda: quit_calls.append("quit"))
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        tray = TrayController(window)
+        window.show()
+        tray.indicator.show()
+
+        tray._quit()
+
+        assert quit_calls == ["quit"]
+        assert not tray.indicator.isVisible()
+        assert not tray.tray.isVisible()
+        assert not window.isVisible()
+    finally:
+        context.close()
+
+
+def test_tray_open_journal_shows_window_and_selects_journal_tab(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode
+    from vpn_sandbox.ui.main_window import MainWindow
+    from vpn_sandbox.ui.tray import TrayController
+
+    class ObservedMainWindow(MainWindow):
+        def __init__(self, controller):
+            self.show_called = False
+            self.raise_called = False
+            self.activate_called = False
+            super().__init__(controller)
+
+        def show(self):
+            self.show_called = True
+            super().show()
+
+        def raise_(self):
+            self.raise_called = True
+
+        def activateWindow(self):
+            self.activate_called = True
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = ObservedMainWindow(context.controller)
+        tray = TrayController(window)
+        window.tabs.setCurrentIndex(0)
+
+        tray._open_journal()
+
+        assert window.tabs.currentIndex() == 4
+        assert window.show_called is True
+        assert window.raise_called is True
+        assert window.activate_called is True
+        assert window.isVisible()
     finally:
         context.close()

@@ -122,6 +122,108 @@ def test_remove_managed_app_deletes_it_from_repository(tmp_path: Path):
     assert controller.repository.find_managed_app(app.exe_path) is None
 
 
+def test_controller_deletes_vpn_profile_and_clears_active_reference(tmp_path: Path):
+    controller = make_controller(tmp_path)
+    controller.configure_mode(OperatingMode.VPN_ONLY)
+    profile = controller.save_vpn_profile(
+        country_code="DE",
+        country_name="Germany",
+        city="Berlin",
+        external_ip="203.0.113.10",
+        protocol="WireGuard",
+        client_name="wg-client",
+        confidence=Confidence.CERTAIN,
+        custom_name="Berlin WG",
+        make_active=True,
+    )
+
+    controller.delete_vpn_profile(profile.id)
+
+    assert controller.repository.list_vpn_profiles() == []
+    settings = controller.repository.get_zone_settings(ZoneKind.VPN)
+    assert settings is not None
+    assert settings.active_profile_id is None
+
+
+def test_controller_deletes_direct_profile_and_clears_active_reference(tmp_path: Path):
+    controller = make_controller(tmp_path)
+    controller.configure_mode(OperatingMode.DIRECT_ONLY)
+    profile = controller.save_direct_profile(
+        interface_name="Ethernet",
+        gateway="192.0.2.1",
+        dns_servers=("1.1.1.1",),
+        custom_name="Office LAN",
+        make_active=True,
+    )
+
+    controller.delete_direct_profile(profile.id)
+
+    assert controller.repository.list_direct_profiles() == []
+    settings = controller.repository.get_zone_settings(ZoneKind.DIRECT)
+    assert settings is not None
+    assert settings.active_profile_id is None
+
+
+def test_controller_lists_profiles_for_ui(tmp_path: Path):
+    controller = make_controller(tmp_path)
+    vpn_profile = controller.save_vpn_profile(
+        country_code="DE",
+        country_name="Germany",
+        city=None,
+        external_ip="203.0.113.10",
+        protocol="WireGuard",
+        client_name=None,
+        confidence=Confidence.CERTAIN,
+        custom_name="Berlin WG",
+        make_active=False,
+    )
+    direct_profile = controller.save_direct_profile(
+        interface_name="Ethernet",
+        gateway="192.0.2.1",
+        dns_servers=("1.1.1.1",),
+        custom_name="Office LAN",
+        make_active=False,
+    )
+
+    assert controller.list_vpn_profiles() == [vpn_profile]
+    assert controller.list_direct_profiles() == [direct_profile]
+
+
+def test_controller_activates_existing_profiles(tmp_path: Path):
+    controller = make_controller(tmp_path)
+    controller.configure_mode(OperatingMode.DUAL_ZONE)
+    vpn_profile = controller.save_vpn_profile(
+        country_code="DE",
+        country_name="Germany",
+        city="Berlin",
+        external_ip="203.0.113.10",
+        protocol="WireGuard",
+        client_name=None,
+        confidence=Confidence.CERTAIN,
+        custom_name="Berlin WG",
+        make_active=False,
+    )
+    direct_profile = controller.save_direct_profile(
+        interface_name="Ethernet",
+        gateway="192.0.2.1",
+        dns_servers=("1.1.1.1",),
+        custom_name="Office LAN",
+        make_active=False,
+    )
+
+    controller.activate_vpn_profile(vpn_profile.id)
+    controller.activate_direct_profile(direct_profile.id)
+
+    assert (
+        controller.repository.get_zone_settings(ZoneKind.VPN).active_profile_id
+        == vpn_profile.id
+    )
+    assert (
+        controller.repository.get_zone_settings(ZoneKind.DIRECT).active_profile_id
+        == direct_profile.id
+    )
+
+
 def test_save_vpn_profile_sets_active_profile_when_requested(tmp_path: Path):
     controller = make_controller(tmp_path)
     controller.configure_mode(OperatingMode.VPN_ONLY)

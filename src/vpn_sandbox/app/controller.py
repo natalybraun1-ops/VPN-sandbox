@@ -81,6 +81,9 @@ class AppController:
     def save_zone_settings(self, settings: ZoneSettings) -> None:
         self.repository.save_zone_settings(settings)
 
+    def get_zone_settings(self, zone: ZoneKind) -> ZoneSettings | None:
+        return self.repository.get_zone_settings(zone)
+
     def add_manual_app(
         self,
         zone: ZoneKind,
@@ -127,6 +130,17 @@ class AppController:
             self._set_active_profile(ZoneKind.VPN, profile.id)
         return profile
 
+    def list_vpn_profiles(self) -> list[VpnProfile]:
+        return self.repository.list_vpn_profiles()
+
+    def delete_vpn_profile(self, profile_id: str) -> None:
+        self.repository.delete_vpn_profile(profile_id)
+
+    def activate_vpn_profile(self, profile_id: str) -> None:
+        if self.repository.get_vpn_profile(profile_id) is None:
+            raise ValueError("vpn profile not found")
+        self._set_active_profile(ZoneKind.VPN, profile_id)
+
     def save_direct_profile(
         self,
         interface_name: str,
@@ -147,6 +161,17 @@ class AppController:
         if make_active:
             self._set_active_profile(ZoneKind.DIRECT, profile.id)
         return profile
+
+    def list_direct_profiles(self) -> list[DirectProfile]:
+        return self.repository.list_direct_profiles()
+
+    def delete_direct_profile(self, profile_id: str) -> None:
+        self.repository.delete_direct_profile(profile_id)
+
+    def activate_direct_profile(self, profile_id: str) -> None:
+        if self.repository.get_direct_profile(profile_id) is None:
+            raise ValueError("direct profile not found")
+        self._set_active_profile(ZoneKind.DIRECT, profile_id)
 
     def _set_active_profile(self, zone: ZoneKind, profile_id: str) -> None:
         existing = self.repository.get_zone_settings(zone)
