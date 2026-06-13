@@ -30,3 +30,15 @@ def test_create_qapplication_updates_existing_instance_metadata():
     assert app is existing
     assert app.applicationName() == "Песочница VPN"
     assert app.organizationName() == "VPN Sandbox"
+
+
+def test_first_run_dialog_defaults_to_dual_zone_mode():
+    from vpn_sandbox.core.models import OperatingMode
+    from vpn_sandbox.ui.app import create_qapplication
+    from vpn_sandbox.ui.first_run import FirstRunDialog
+
+    _app = create_qapplication([])
+    dialog = FirstRunDialog()
+
+    assert dialog.windowTitle() == "Первый запуск"
+    assert dialog.selected_mode() == OperatingMode.DUAL_ZONE
