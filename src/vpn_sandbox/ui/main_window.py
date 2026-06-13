@@ -25,6 +25,7 @@ from vpn_sandbox.ui.widgets import StatusBadge, set_table_rows
 
 
 _ZONE_ORDER = (ZoneKind.VPN, ZoneKind.DIRECT)
+_DUPLICATE_MANAGED_APP_MESSAGE = "application is already managed"
 
 
 class MainWindow(QMainWindow):
@@ -52,7 +53,7 @@ class MainWindow(QMainWindow):
 
     def add_manual_app_for_test(
         self,
-        zone,
+        zone: ZoneKind,
         exe_path: str,
         display_name: str,
     ) -> None:
@@ -198,7 +199,9 @@ class MainWindow(QMainWindow):
                 exe_path=file_name,
                 display_name=Path(file_name).stem,
             )
-        except ValueError:
+        except ValueError as exc:
+            if str(exc) != _DUPLICATE_MANAGED_APP_MESSAGE:
+                raise
             QMessageBox.warning(
                 self,
                 "Приложение уже добавлено",

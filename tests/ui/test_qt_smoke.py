@@ -26,6 +26,17 @@ def _table_text(table, row: int, column: int) -> str:
     return "" if item is None else item.text()
 
 
+def _patch_input_text_sequence(monkeypatch, answers):
+    from PyQt6.QtWidgets import QInputDialog
+
+    values = iter(answers)
+
+    def get_text(*_args):
+        return next(values)
+
+    monkeypatch.setattr(QInputDialog, "getText", get_text)
+
+
 def test_create_qapplication_returns_single_instance():
     from PyQt6.QtWidgets import QApplication
     from vpn_sandbox.ui.app import create_qapplication
@@ -288,6 +299,49 @@ def test_main_window_add_app_dialog_warns_for_duplicate_app(monkeypatch):
     ]
 
 
+def test_main_window_add_app_dialog_reraises_unexpected_value_error(monkeypatch):
+    from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+    from vpn_sandbox.app.controller import DashboardState
+    from vpn_sandbox.core.models import OperatingMode
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    class BrokenController:
+        def load_dashboard(self, _snapshot):
+            return DashboardState(
+                operating_mode=OperatingMode.DUAL_ZONE,
+                zones={},
+                events=(),
+            )
+
+        def add_manual_app(self, zone, exe_path, display_name):
+            raise ValueError("different validation failure")
+
+    warnings = []
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        lambda *args: ("C:/Apps/browser.exe", ""),
+    )
+    monkeypatch.setattr(
+        QInputDialog,
+        "getItem",
+        lambda *args: ("VPN-зона", True),
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda *args: warnings.append(args),
+    )
+
+    _app = _ensure_qapplication()
+    window = MainWindow(BrokenController())
+
+    with pytest.raises(ValueError, match="different validation failure"):
+        window._show_add_app_dialog()
+
+    assert warnings == []
+
+
 def test_main_window_saves_active_vpn_profile_from_action(tmp_path: Path):
     from vpn_sandbox.app.bootstrap import open_app_context
     from vpn_sandbox.core.models import ZoneKind
@@ -318,6 +372,47 @@ def test_main_window_saves_active_vpn_profile_from_action(tmp_path: Path):
         context.close()
 
 
+def test_main_window_vpn_profile_dialog_saves_entered_values(tmp_path: Path, monkeypatch):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _patch_input_text_sequence(
+        monkeypatch,
+        [
+            (" DE ", True),
+            (" Germany ", True),
+            (" 203.0.113.10 ", True),
+            (" Berlin ", True),
+            (" WireGuard ", True),
+            (" wg-client ", True),
+            (" Berlin WG ", True),
+        ],
+    )
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        window = MainWindow(context.controller)
+
+        window._show_add_vpn_profile_dialog()
+
+        profiles = context.repository.list_vpn_profiles()
+        assert len(profiles) == 1
+        assert profiles[0].country_code == "DE"
+        assert profiles[0].country_name == "Germany"
+        assert profiles[0].city == "Berlin"
+        assert profiles[0].external_ip == "203.0.113.10"
+        assert profiles[0].protocol == "WireGuard"
+        assert profiles[0].client_name == "wg-client"
+        assert profiles[0].custom_name == "Berlin WG"
+        settings = context.repository.get_zone_settings(ZoneKind.VPN)
+        assert settings is not None
+        assert settings.active_profile_id == profiles[0].id
+    finally:
+        context.close()
+
+
 def test_main_window_saves_active_direct_profile_from_action(tmp_path: Path):
     from vpn_sandbox.app.bootstrap import open_app_context
     from vpn_sandbox.core.models import ZoneKind
@@ -341,6 +436,74 @@ def test_main_window_saves_active_direct_profile_from_action(tmp_path: Path):
         settings = context.repository.get_zone_settings(ZoneKind.DIRECT)
         assert settings is not None
         assert settings.active_profile_id == profiles[0].id
+    finally:
+        context.close()
+
+
+def test_main_window_direct_profile_dialog_saves_dns_servers(tmp_path: Path, monkeypatch):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _patch_input_text_sequence(
+        monkeypatch,
+        [
+            (" Ethernet ", True),
+            (" 192.0.2.1 ", True),
+            ("1.1.1.1, 8.8.8.8", True),
+            (" Office LAN ", True),
+        ],
+    )
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        window = MainWindow(context.controller)
+
+        window._show_add_direct_profile_dialog()
+
+        profiles = context.repository.list_direct_profiles()
+        assert len(profiles) == 1
+        assert profiles[0].interface_name == "Ethernet"
+        assert profiles[0].gateway == "192.0.2.1"
+        assert profiles[0].dns_servers == ("1.1.1.1", "8.8.8.8")
+        assert profiles[0].custom_name == "Office LAN"
+        settings = context.repository.get_zone_settings(ZoneKind.DIRECT)
+        assert settings is not None
+        assert settings.active_profile_id == profiles[0].id
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("dialog_name", "answers", "profile_list_name"),
+    [
+        ("_show_add_vpn_profile_dialog", [("", False)], "list_vpn_profiles"),
+        ("_show_add_vpn_profile_dialog", [("DE", True), ("   ", True)], "list_vpn_profiles"),
+        ("_show_add_direct_profile_dialog", [("", False)], "list_direct_profiles"),
+        ("_show_add_direct_profile_dialog", [("   ", True)], "list_direct_profiles"),
+    ],
+)
+def test_main_window_profile_dialog_skips_cancel_or_empty_required_field(
+    tmp_path: Path,
+    monkeypatch,
+    dialog_name: str,
+    answers,
+    profile_list_name: str,
+):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _patch_input_text_sequence(monkeypatch, answers)
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        window = MainWindow(context.controller)
+
+        getattr(window, dialog_name)()
+
+        assert getattr(context.repository, profile_list_name)() == []
     finally:
         context.close()
 
