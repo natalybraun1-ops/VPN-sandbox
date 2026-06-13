@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -85,3 +86,25 @@ def test_first_run_dialog_returns_selected_mode_from_button_group():
         dialog.button_for_mode(mode).setChecked(True)
 
         assert dialog.selected_mode() == mode
+
+
+def test_main_window_contains_expected_tabs(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    context = open_app_context(tmp_path)
+    context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+
+    window = MainWindow(context.controller)
+
+    assert window.windowTitle() == "Песочница VPN"
+    assert [window.tabs.tabText(index) for index in range(window.tabs.count())] == [
+        "Обзор",
+        "Зоны",
+        "Профили",
+        "Приложения",
+        "Журнал",
+        "Диагностика",
+    ]
+    context.close()
