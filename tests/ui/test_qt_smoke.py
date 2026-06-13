@@ -562,3 +562,40 @@ def test_main_window_refresh_uses_explicit_zone_order_and_clears_missing_zone():
 
     assert window._dashboard_labels[1].text() != direct_text
     assert window._dashboard_labels[1].text() == f"{zone_label(ZoneKind.DIRECT)}: нет данных"
+
+
+def test_mini_indicator_can_update_status_text():
+    from vpn_sandbox.core.models import ZoneStatus
+    from vpn_sandbox.ui.mini_indicator import MiniIndicator
+
+    _app = _ensure_qapplication()
+    indicator = MiniIndicator()
+    try:
+        indicator.update_status(ZoneStatus.ATTENTION, "Требует внимания")
+
+        assert "Требует внимания" in indicator.status_text()
+    finally:
+        indicator.close()
+
+
+def test_tray_controller_builds_menu(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode
+    from vpn_sandbox.ui.main_window import MainWindow
+    from vpn_sandbox.ui.tray import TrayController
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+        tray = TrayController(window)
+
+        assert tray.menu_action_texts() == [
+            "Открыть",
+            "Показать мини-индикатор",
+            "Открыть журнал",
+            "Выход",
+        ]
+    finally:
+        context.close()
