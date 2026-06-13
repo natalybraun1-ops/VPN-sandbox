@@ -210,6 +210,141 @@ def test_main_window_refresh_populates_dashboard_apps_and_journal(tmp_path: Path
         context.close()
 
 
+def test_main_window_adds_manual_app_from_action(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        context.controller.configure_mode(OperatingMode.DUAL_ZONE)
+        window = MainWindow(context.controller)
+
+        window.add_manual_app_for_test(
+            zone=ZoneKind.VPN,
+            exe_path="C:/Apps/browser.exe",
+            display_name="Browser",
+        )
+
+        assert context.repository.list_managed_apps(ZoneKind.VPN)[0].display_name == "Browser"
+    finally:
+        context.close()
+
+
+def test_main_window_add_app_dialog_warns_for_duplicate_app(monkeypatch):
+    from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+    from vpn_sandbox.app.controller import DashboardState
+    from vpn_sandbox.core.models import OperatingMode, ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    class DuplicateController:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def load_dashboard(self, _snapshot):
+            return DashboardState(
+                operating_mode=OperatingMode.DUAL_ZONE,
+                zones={},
+                events=(),
+            )
+
+        def add_manual_app(self, zone, exe_path, display_name):
+            self.calls.append((zone, exe_path, display_name))
+            raise ValueError("application is already managed")
+
+    warnings = []
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        lambda *args: ("C:/Apps/browser.exe", ""),
+    )
+    monkeypatch.setattr(
+        QInputDialog,
+        "getItem",
+        lambda *args: ("VPN-зона", True),
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda parent, title, message: warnings.append((parent, title, message)),
+    )
+
+    _app = _ensure_qapplication()
+    controller = DuplicateController()
+    window = MainWindow(controller)
+
+    window._show_add_app_dialog()
+
+    assert controller.calls == [
+        (ZoneKind.VPN, "C:/Apps/browser.exe", "browser"),
+    ]
+    assert warnings == [
+        (
+            window,
+            "Приложение уже добавлено",
+            "Это приложение уже добавлено в одну из зон. Удалите его из текущей зоны, чтобы добавить в другую.",
+        )
+    ]
+
+
+def test_main_window_saves_active_vpn_profile_from_action(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        window = MainWindow(context.controller)
+
+        window.save_vpn_profile_for_test(
+            country_code="DE",
+            country_name="Germany",
+            city="Berlin",
+            external_ip="203.0.113.10",
+            protocol="WireGuard",
+            client_name="wg-client",
+            custom_name="Berlin WG",
+        )
+
+        profiles = context.repository.list_vpn_profiles()
+        assert len(profiles) == 1
+        assert profiles[0].effective_name == "Berlin WG"
+        settings = context.repository.get_zone_settings(ZoneKind.VPN)
+        assert settings is not None
+        assert settings.active_profile_id == profiles[0].id
+    finally:
+        context.close()
+
+
+def test_main_window_saves_active_direct_profile_from_action(tmp_path: Path):
+    from vpn_sandbox.app.bootstrap import open_app_context
+    from vpn_sandbox.core.models import ZoneKind
+    from vpn_sandbox.ui.main_window import MainWindow
+
+    _app = _ensure_qapplication()
+    context = open_app_context(tmp_path)
+    try:
+        window = MainWindow(context.controller)
+
+        window.save_direct_profile_for_test(
+            interface_name="Ethernet",
+            gateway="192.0.2.1",
+            dns_servers=("1.1.1.1", "8.8.8.8"),
+            custom_name="Office LAN",
+        )
+
+        profiles = context.repository.list_direct_profiles()
+        assert len(profiles) == 1
+        assert profiles[0].effective_name == "Office LAN"
+        settings = context.repository.get_zone_settings(ZoneKind.DIRECT)
+        assert settings is not None
+        assert settings.active_profile_id == profiles[0].id
+    finally:
+        context.close()
+
+
 def test_main_window_refresh_uses_explicit_zone_order_and_clears_missing_zone():
     from vpn_sandbox.app.controller import DashboardState, ZoneDashboard
     from vpn_sandbox.core.models import OperatingMode, ZoneKind, ZoneStatus
